@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { t, detectLang, type Lang } from "@/lib/i18n";
 
 interface StationData {
   station: {
@@ -90,6 +91,7 @@ export default function Home() {
   const [expandedAlerts, setExpandedAlerts] = useState<Set<string>>(new Set());
   const [nearestStation, setNearestStation] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
+  const [lang, setLang] = useState<Lang>("fr");
 
   const fetchData = useCallback(async () => {
     try {
@@ -144,6 +146,7 @@ export default function Home() {
 
   useEffect(() => {
     setMounted(true);
+    setLang(detectLang());
     setLoading(true);
     fetchData();
     const interval = setInterval(() => { fetchData(); setCountdown(15); }, 15000);
@@ -215,7 +218,7 @@ export default function Home() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950">
           <div className="text-center">
             <div className="h-10 w-10 mx-auto mb-4 rounded-full border-4 border-green-500 border-t-transparent animate-spin" />
-            <p className="text-gray-400">Loading REM schedule...</p>
+            <p className="text-gray-400">{t("loading", lang)}</p>
           </div>
         </div>
       )}
@@ -224,15 +227,21 @@ export default function Home() {
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-md bg-green-600 flex items-center justify-center font-bold text-xs">R</div>
-            <span className="font-semibold">REM Montréal</span>
+            <span className="font-semibold">{t("title", lang)}</span>
           </div>
           <div className="flex items-center gap-3">
             {trains.length > 0 && (
               <span className="text-xs text-green-400 flex items-center gap-1">
                 <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                {trains.length} trains
+                {trains.length} {t("trains", lang)}
               </span>
             )}
+            <button
+              onClick={() => setLang((l) => l === "en" ? "fr" : "en")}
+              className="text-xs text-gray-400 hover:text-white bg-gray-800 border border-gray-700 rounded px-1.5 py-0.5 font-medium uppercase"
+            >
+              {lang === "en" ? "FR" : "EN"}
+            </button>
             <span className="text-xs text-gray-500">
               {lastRefresh?.toLocaleTimeString("en-CA", { hour: "2-digit", minute: "2-digit" })}
             </span>
@@ -265,7 +274,7 @@ export default function Home() {
                   <p className="text-xs text-amber-300/80 whitespace-pre-line">{alert.descriptionText}</p>
                   {alert.url && (
                     <a href={alert.url} target="_blank" rel="noopener noreferrer" className="text-xs text-amber-400 underline mt-1 inline-block">
-                      More info →
+                      {t("moreInfo", lang)}
                     </a>
                   )}
                 </div>
@@ -293,12 +302,13 @@ export default function Home() {
           nearestStation={nearestStation}
           onLocate={locateNearest}
           locating={locating}
+          lang={lang}
         />
         {/* Detail panel — desktop sidebar */}
         <div className="hidden md:block md:w-72 shrink-0">
           <div className="sticky top-16">
             {selectedData && (
-              <StationDetail data={selectedData} onClose={() => setSelectedStation(null)} />
+              <StationDetail data={selectedData} onClose={() => setSelectedStation(null)} lang={lang} />
             )}
           </div>
         </div>
@@ -312,7 +322,7 @@ export default function Home() {
             className="absolute bottom-0 left-0 right-0 max-h-[60vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <StationDetail data={selectedData} onClose={() => setSelectedStation(null)} />
+            <StationDetail data={selectedData} onClose={() => setSelectedStation(null)} lang={lang} />
           </div>
         </div>
       )}
@@ -322,15 +332,15 @@ export default function Home() {
         <div className="flex items-center justify-center gap-6 mb-3">
           <div className="flex items-center gap-2">
             <div className="w-3 h-4 rounded-sm bg-green-500" />
-            <span className="text-xs text-gray-400">↑ Northbound</span>
+            <span className="text-xs text-gray-400">{t("northbound", lang)}</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-4 rounded-sm bg-blue-400" />
-            <span className="text-xs text-gray-400">↓ Southbound</span>
+            <span className="text-xs text-gray-400">{t("southbound", lang)}</span>
           </div>
         </div>
         <div className="flex items-center justify-center gap-2 text-xs text-gray-600">
-          <span>Estimated positions based on schedule</span>
+          <span>{t("estimated", lang)}</span>
           <span>·</span>
           <span className="inline-flex items-center gap-1.5">
             <svg className="w-3 h-3" viewBox="0 0 16 16">
@@ -363,7 +373,7 @@ const ZOOMED_VB = { x: 50, y: 100, w: 320, h: 600 }; // centered on trunk
 function MapView({
   selectedStation, setSelectedStation, stationMap, trains,
   trunkIds, branchIds, trunkLeftPath, trunkRightPath, branchLeftPath, branchRightPath, offsetPath,
-  nearestStation, onLocate, locating,
+  nearestStation, onLocate, locating, lang,
 }: {
   selectedStation: string | null;
   setSelectedStation: (id: string | null) => void;
@@ -379,6 +389,7 @@ function MapView({
   nearestStation: string | null;
   onLocate: () => void;
   locating: boolean;
+  lang: Lang;
 }) {
   const [vb, setVb] = useState(ZOOMED_VB);
   const [isZoomed, setIsZoomed] = useState(true);
@@ -530,7 +541,7 @@ function MapView({
           onClick={toggleZoom}
           className="bg-gray-800/80 hover:bg-gray-700 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-gray-300 backdrop-blur"
         >
-          {isZoomed ? "🗺" : "🔍"}
+          {isZoomed ? t("fullMap", lang) : t("zoomIn", lang)}
         </button>
       </div>
 
@@ -576,7 +587,7 @@ function MapView({
                       <animate attributeName="r" values="14;20;14" dur="2s" repeatCount="indefinite" />
                       <animate attributeName="opacity" values="0.6;0.1;0.6" dur="2s" repeatCount="indefinite" />
                     </circle>
-                    <text x={pos.x} y={pos.y + 28} textAnchor="middle" fill="#fbbf24" fontSize="8" fontFamily="system-ui, sans-serif">📍 Nearest</text>
+                    <text x={pos.x} y={pos.y + 28} textAnchor="middle" fill="#fbbf24" fontSize="8" fontFamily="system-ui, sans-serif">{t("nearest", lang)}</text>
                   </>
                 )}
                 <line x1={pos.x - TG - 2} y1={pos.y} x2={pos.x + TG + 2} y2={pos.y}
@@ -616,10 +627,10 @@ function MapView({
                   );
                 })()}
                 {id === "ST_RIV_1" && (
-                  <text x={pos.x} y={pos.y + 30} fill="#64748b" fontSize="10" fontFamily="system-ui, sans-serif" textAnchor="middle">A1 — South Terminal</text>
+                  <text x={pos.x} y={pos.y + 30} fill="#64748b" fontSize="10" fontFamily="system-ui, sans-serif" textAnchor="middle">{t("southTerminal", lang)}</text>
                 )}
                 {id === "ST_DEM_1" && (
-                  <text x={pos.x} y={pos.y - 30} fill="#64748b" fontSize="10" fontFamily="system-ui, sans-serif" textAnchor="middle">A4 — North Terminal</text>
+                  <text x={pos.x} y={pos.y - 30} fill="#64748b" fontSize="10" fontFamily="system-ui, sans-serif" textAnchor="middle">{t("northTerminal", lang)}</text>
                 )}
               </g>
             );
@@ -711,7 +722,7 @@ function getDirectionalDepartures(station: StationData): { north: number | null;
   return { north, south };
 }
 
-function StationDetail({ data, onClose }: { data: StationData; onClose: () => void }) {
+function StationDetail({ data, onClose, lang }: { data: StationData; onClose: () => void; lang: Lang }) {
   const hasService = data.nextDepartures.length > 0;
 
   return (
@@ -725,7 +736,7 @@ function StationDetail({ data, onClose }: { data: StationData; onClose: () => vo
       {/* Departures */}
       <div className="p-4">
         {!hasService ? (
-          <p className="text-sm text-gray-500 text-center py-4">No upcoming trains</p>
+          <p className="text-sm text-gray-500 text-center py-4">{t("noTrains", lang)}</p>
         ) : (
           <div className="space-y-4">
             {data.nextDepartures.map((dir) => (
