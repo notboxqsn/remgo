@@ -83,6 +83,8 @@ export default function Home() {
   const [trains, setTrains] = useState<TrainPosition[]>([]);
   const [countdown, setCountdown] = useState(15);
   const [expandedAlerts, setExpandedAlerts] = useState<Set<string>>(new Set());
+  const [nearestStation, setNearestStation] = useState<string | null>(null);
+  const [locating, setLocating] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -103,6 +105,36 @@ export default function Home() {
     }
   }, []);
 
+  const locateNearest = useCallback(() => {
+    if (!navigator.geolocation) return;
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        let minDist = Infinity;
+        let closest: string | null = null;
+        for (const id of LINE_ORDER) {
+          const sp = STATION_POSITIONS[id];
+          if (!sp) continue;
+          // Find real lat/lon from data or hardcoded station list
+          const stData = data?.stations.find((s) => s.station.id === id);
+          if (!stData) continue;
+          const dlat = stData.station.lat - latitude;
+          const dlon = stData.station.lon - longitude;
+          const dist = dlat * dlat + dlon * dlon;
+          if (dist < minDist) { minDist = dist; closest = id; }
+        }
+        if (closest) {
+          setNearestStation(closest);
+          setSelectedStation(closest);
+        }
+        setLocating(false);
+      },
+      () => { setLocating(false); },
+      { enableHighAccuracy: false, timeout: 8000 }
+    );
+  }, [data]);
+
   useEffect(() => {
     setMounted(true);
     setLoading(true);
@@ -111,6 +143,15 @@ export default function Home() {
     const tick = setInterval(() => setCountdown((c) => Math.max(0, c - 1)), 1000);
     return () => { clearInterval(interval); clearInterval(tick); };
   }, [fetchData]);
+
+  // Auto-locate on first data load
+  const locatedOnce = useRef(false);
+  useEffect(() => {
+    if (data && !locatedOnce.current) {
+      locatedOnce.current = true;
+      locateNearest();
+    }
+  }, [data, locateNearest]);
 
   const stationMap = new Map(data?.stations.map((s) => [s.station.id, s]) ?? []);
   const selectedData = selectedStation ? stationMap.get(selectedStation) : null;
@@ -225,6 +266,9 @@ export default function Home() {
           branchLeftPath={branchLeftPath}
           branchRightPath={branchRightPath}
           offsetPath={offsetPath}
+          nearestStation={nearestStation}
+          onLocate={locateNearest}
+          locating={locating}
         />
         {/* Detail panel — desktop sidebar */}
         <div className="hidden md:block md:w-72 shrink-0">
@@ -295,6 +339,7 @@ const ZOOMED_VB = { x: 50, y: 100, w: 320, h: 600 }; // centered on trunk
 function MapView({
   selectedStation, setSelectedStation, stationMap, trains,
   trunkIds, branchIds, trunkLeftPath, trunkRightPath, branchLeftPath, branchRightPath, offsetPath,
+  nearestStation, onLocate, locating,
 }: {
   selectedStation: string | null;
   setSelectedStation: (id: string | null) => void;
@@ -307,6 +352,9 @@ function MapView({
   branchLeftPath: string;
   branchRightPath: string;
   offsetPath: (ids: string[], side: number) => string;
+  nearestStation: string | null;
+  onLocate: () => void;
+  locating: boolean;
 }) {
   const [vb, setVb] = useState(ZOOMED_VB);
   const [isZoomed, setIsZoomed] = useState(true);
@@ -315,6 +363,18 @@ function MapView({
   const lastPos = useRef({ x: 0, y: 0 });
   const dragMoved = useRef(false);
   const pinchDist = useRef(0);
+  const centeredOnNearest = useRef(false);
+
+  // Center on nearest station when GPS locates
+  useEffect(() => {
+    if (nearestStation && !centeredOnNearest.current) {
+      centeredOnNearest.current = true;
+      const pos = STATION_POSITIONS[nearestStation];
+      if (pos) {
+        setVb((v) => ({ ...v, x: pos.x - v.w / 2, y: pos.y - v.h / 2 }));
+      }
+    }
+  }, [nearestStation]);
 
   const toggleZoom = useCallback(() => {
     if (isZoomed) {
@@ -430,13 +490,25 @@ function MapView({
 
   return (
     <div className="flex-1 relative" ref={containerRef}>
-      {/* Zoom toggle button */}
-      <button
-        onClick={toggleZoom}
-        className="absolute top-2 right-2 z-10 bg-gray-800/80 hover:bg-gray-700 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-gray-300 backdrop-blur"
-      >
-        {isZoomed ? "🗺 Full map" : "🔍 Zoom in"}
-      </button>
+      {/* Map controls */}
+      <div className="absolute top-2 right-2 z-10 flex gap-1.5">
+        <button
+          onClick={() => {
+            centeredOnNearest.current = false;
+            onLocate();
+          }}
+          disabled={locating}
+          className="bg-gray-800/80 hover:bg-gray-700 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-gray-300 backdrop-blur disabled:opacity-50"
+        >
+          {locating ? "⏳" : "📍"}
+        </button>
+        <button
+          onClick={toggleZoom}
+          className="bg-gray-800/80 hover:bg-gray-700 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-gray-300 backdrop-blur"
+        >
+          {isZoomed ? "🗺" : "🔍"}
+        </button>
+      </div>
 
       <div
         onWheel={handleWheel}
@@ -468,10 +540,21 @@ function MapView({
             const station = stationMap.get(id);
             if (!pos || !station) return null;
             const isSelected = selectedStation === id;
+            const isNearest = nearestStation === id;
             const dirDeps = getDirectionalDepartures(station);
             return (
               <g key={id} className="cursor-pointer" onClick={() => selectAndPan(id)}>
                 <rect x={pos.x - 20} y={pos.y - 20} width={40} height={40} fill="transparent" />
+                {/* Nearest station pulse ring */}
+                {isNearest && (
+                  <>
+                    <circle cx={pos.x} cy={pos.y} r={18} fill="none" stroke="#f59e0b" strokeWidth={1.5} opacity={0.5}>
+                      <animate attributeName="r" values="14;20;14" dur="2s" repeatCount="indefinite" />
+                      <animate attributeName="opacity" values="0.6;0.1;0.6" dur="2s" repeatCount="indefinite" />
+                    </circle>
+                    <text x={pos.x} y={pos.y + 28} textAnchor="middle" fill="#fbbf24" fontSize="8" fontFamily="system-ui, sans-serif">📍 Nearest</text>
+                  </>
+                )}
                 <line x1={pos.x - TG - 2} y1={pos.y} x2={pos.x + TG + 2} y2={pos.y}
                   stroke={isSelected ? "#86efac" : "#22c55e"} strokeWidth={isSelected ? 3 : 2} strokeLinecap="round" />
                 <circle cx={pos.x - TG} cy={pos.y} r={isSelected ? 5 : 4}
