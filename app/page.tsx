@@ -340,14 +340,14 @@ function MapView({
     setIsZoomed(false);
   }, []);
 
-  // Drag to pan
-  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+  // Mouse drag to pan
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
     dragging.current = true;
     dragMoved.current = false;
     lastPos.current = { x: e.clientX, y: e.clientY };
   }, []);
 
-  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!dragging.current || !containerRef.current) return;
     const dx = e.clientX - lastPos.current.x;
     const dy = e.clientY - lastPos.current.y;
@@ -361,13 +361,43 @@ function MapView({
     }));
   }, []);
 
-  const handlePointerUp = useCallback(() => { dragging.current = false; }, []);
+  const handleMouseUp = useCallback(() => { dragging.current = false; }, []);
 
-  // Pinch to zoom on touch
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+  // Touch: single finger pan + two finger pinch zoom
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      dragging.current = true;
+      dragMoved.current = false;
+      lastPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
     if (e.touches.length === 2) {
-      const t = e.touches;
-      const dist = Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+      dragging.current = false;
+      pinchDist.current = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+    }
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    e.preventDefault(); // prevent browser scroll
+    if (e.touches.length === 1 && dragging.current && containerRef.current) {
+      const dx = e.touches[0].clientX - lastPos.current.x;
+      const dy = e.touches[0].clientY - lastPos.current.y;
+      if (Math.abs(dx) > 2 || Math.abs(dy) > 2) dragMoved.current = true;
+      lastPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      const rect = containerRef.current.getBoundingClientRect();
+      setVb((v) => ({
+        ...v,
+        x: v.x - (dx / rect.width) * v.w,
+        y: v.y - (dy / rect.height) * v.h,
+      }));
+    }
+    if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
       if (pinchDist.current > 0) {
         const factor = pinchDist.current / dist;
         setVb((v) => {
@@ -382,7 +412,10 @@ function MapView({
     }
   }, []);
 
-  const handleTouchEnd = useCallback(() => { pinchDist.current = 0; }, []);
+  const handleTouchEnd = useCallback(() => {
+    dragging.current = false;
+    pinchDist.current = 0;
+  }, []);
 
   // Click station → pan to it
   const selectAndPan = useCallback((id: string) => {
@@ -407,13 +440,14 @@ function MapView({
 
       <div
         onWheel={handleWheel}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerUp}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        className="touch-manipulation"
+        className="touch-none"
       >
         <svg
           viewBox={viewBox}
