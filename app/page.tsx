@@ -32,6 +32,8 @@ interface TrainPosition {
   toStationId: string;
   progress: number;
   atStation: boolean;
+  segStartMin: number;
+  segEndMin: number;
 }
 
 interface ScheduleResponse {
@@ -81,6 +83,9 @@ export default function Home() {
   const [selectedStation, setSelectedStation] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [trains, setTrains] = useState<TrainPosition[]>([]);
+  const [liveTrains, setLiveTrains] = useState<TrainPosition[]>([]);
+  const serverTimeRef = useRef(0); // server nowMinutes at last fetch
+  const fetchTimeRef = useRef(0);  // Date.now() at last fetch
   const [countdown, setCountdown] = useState(15);
   const [expandedAlerts, setExpandedAlerts] = useState<Set<string>>(new Set());
   const [nearestStation, setNearestStation] = useState<string | null>(null);
@@ -96,6 +101,8 @@ export default function Home() {
       const alertData = await alertRes.json();
       setData(schedData);
       setTrains(schedData.trains ?? []);
+      serverTimeRef.current = schedData.nowMinutes;
+      fetchTimeRef.current = Date.now();
       setAlerts(alertData.alerts ?? []);
       setLastRefresh(new Date());
     } catch (e) {
@@ -140,9 +147,23 @@ export default function Home() {
     setLoading(true);
     fetchData();
     const interval = setInterval(() => { fetchData(); setCountdown(15); }, 15000);
-    const tick = setInterval(() => setCountdown((c) => Math.max(0, c - 1)), 1000);
+    const tick = setInterval(() => {
+      setCountdown((c) => Math.max(0, c - 1));
+      // Interpolate train positions client-side
+      if (trains.length > 0 && serverTimeRef.current > 0) {
+        const elapsed = (Date.now() - fetchTimeRef.current) / 60000; // minutes since fetch
+        const nowMin = serverTimeRef.current + elapsed;
+        setLiveTrains(trains.map((t) => {
+          if (t.atStation) return t;
+          const total = t.segEndMin - t.segStartMin;
+          if (total <= 0) return t;
+          const p = Math.min(1, Math.max(0, (nowMin - t.segStartMin) / total));
+          return { ...t, progress: p };
+        }));
+      }
+    }, 1000);
     return () => { clearInterval(interval); clearInterval(tick); };
-  }, [fetchData]);
+  }, [fetchData, trains]);
 
   // Auto-locate on first data load
   const locatedOnce = useRef(false);
@@ -258,7 +279,7 @@ export default function Home() {
           selectedStation={selectedStation}
           setSelectedStation={setSelectedStation}
           stationMap={stationMap}
-          trains={trains}
+          trains={liveTrains.length > 0 ? liveTrains : trains}
           trunkIds={trunkIds}
           branchIds={branchIds}
           trunkLeftPath={trunkLeftPath}

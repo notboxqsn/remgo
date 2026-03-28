@@ -206,6 +206,8 @@ export interface TrainPosition {
   toStationId: string;
   progress: number; // 0..1 between fromStation and toStation
   atStation: boolean; // true if dwelling at fromStation
+  segStartMin: number; // departure time from fromStation (minutes)
+  segEndMin: number;   // arrival time at toStation (minutes)
 }
 
 interface TripStop {
@@ -287,6 +289,8 @@ export function estimateTrainPositions(date: Date, nowMinutes: number): TrainPos
           toStationId: stop.stationId,
           progress: 0,
           atStation: true,
+          segStartMin: stop.arrivalMin,
+          segEndMin: stop.departureMin,
         });
         found = true;
         break;
@@ -305,6 +309,8 @@ export function estimateTrainPositions(date: Date, nowMinutes: number): TrainPos
             toStationId: next.stationId,
             progress: total > 0 ? elapsed / total : 0.5,
             atStation: false,
+            segStartMin: stop.departureMin,
+            segEndMin: next.arrivalMin,
           });
           found = true;
           break;
@@ -321,6 +327,8 @@ export function estimateTrainPositions(date: Date, nowMinutes: number): TrainPos
         toStationId: stops[0].stationId,
         progress: 0,
         atStation: true,
+        segStartMin: stops[0].departureMin - 2,
+        segEndMin: stops[0].departureMin,
       });
     }
   }
