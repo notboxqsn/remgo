@@ -104,7 +104,7 @@ function parseGtfsRtAlerts(buf: Buffer): Alert[] {
       }
 
       if (headerText) {
-        alerts.push({ id, headerText, descriptionText, url, activePeriods });
+        alerts.push({ id, headerText, descriptionText, url, activePeriods, activeLabel: "" });
       }
     }
   } catch {
