@@ -602,7 +602,7 @@ function MapView({
                 </text>
                 {/* North badge (left) */}
                 {dirDeps.north !== null && (() => {
-                  const m = dirDeps.north!; const label = m <= 0 ? "now" : `${m}m`;
+                  const m = dirDeps.north!; const label = m <= 0 ? t("now", lang) : `${m}${t("m", lang)}`;
                   const w = label.length * 6.5 + 10; const bx = pos.x - TG - 14 - w;
                   return (
                     <g>
@@ -615,7 +615,7 @@ function MapView({
                 })()}
                 {/* South badge (right) */}
                 {dirDeps.south !== null && (() => {
-                  const m = dirDeps.south!; const label = m <= 0 ? "now" : `${m}m`;
+                  const m = dirDeps.south!; const label = m <= 0 ? t("now", lang) : `${m}${t("m", lang)}`;
                   const w = label.length * 6.5 + 10; const bx = pos.x + TG + 14;
                   return (
                     <g>
@@ -756,7 +756,7 @@ function StationDetail({ data, onClose, lang }: { data: StationData; onClose: ()
                         {dep.time}
                       </span>
                       <span className={`text-xs ${i === 0 ? "text-green-400" : "text-gray-500"}`}>
-                        {dep.minutes <= 0 ? "now" : `${dep.minutes} min`}
+                        {dep.minutes <= 0 ? t("now", lang) : `${dep.minutes} ${t("min", lang)}`}
                       </span>
                     </div>
                   ))}

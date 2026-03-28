@@ -15,6 +15,9 @@ const dict = {
   northTerminal: { en: "A4 — North Terminal", fr: "A4 — Terminus nord" },
   noTrains: { en: "No upcoming trains", fr: "Aucun train à venir" },
   tapStation: { en: "Tap a station to see departures", fr: "Touchez une station pour voir les départs" },
+  now: { en: "now", fr: "maint." },
+  min: { en: "min", fr: "min" },
+  m: { en: "m", fr: "m" },
 } as const;
 
 type Key = keyof typeof dict;
