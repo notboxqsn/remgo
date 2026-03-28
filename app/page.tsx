@@ -226,8 +226,8 @@ export default function Home() {
           branchRightPath={branchRightPath}
           offsetPath={offsetPath}
         />
-        {/* Detail panel */}
-        <div className="md:w-72 shrink-0">
+        {/* Detail panel — desktop sidebar */}
+        <div className="hidden md:block md:w-72 shrink-0">
           <div className="sticky top-16">
             {selectedData && (
               <StationDetail data={selectedData} onClose={() => setSelectedStation(null)} />
@@ -235,6 +235,19 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* Detail panel — mobile bottom sheet */}
+      {selectedData && (
+        <div className="md:hidden fixed inset-0 z-40" onClick={() => setSelectedStation(null)}>
+          <div className="absolute inset-0 bg-black/50" />
+          <div
+            className="absolute bottom-0 left-0 right-0 max-h-[60vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <StationDetail data={selectedData} onClose={() => setSelectedStation(null)} />
+          </div>
+        </div>
+      )}
 
       {/* Legend + Footer */}
       <div className="max-w-3xl mx-auto px-4 pb-6">
@@ -300,6 +313,7 @@ function MapView({
   const containerRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
   const lastPos = useRef({ x: 0, y: 0 });
+  const dragMoved = useRef(false);
   const pinchDist = useRef(0);
 
   const toggleZoom = useCallback(() => {
@@ -328,21 +342,18 @@ function MapView({
 
   // Drag to pan
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    if (e.pointerType === "touch" && e.isPrimary) {
-      dragging.current = true;
-      lastPos.current = { x: e.clientX, y: e.clientY };
-    } else if (e.pointerType === "mouse") {
-      dragging.current = true;
-      lastPos.current = { x: e.clientX, y: e.clientY };
-    }
+    dragging.current = true;
+    dragMoved.current = false;
+    lastPos.current = { x: e.clientX, y: e.clientY };
   }, []);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!dragging.current || !containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
     const dx = e.clientX - lastPos.current.x;
     const dy = e.clientY - lastPos.current.y;
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) dragMoved.current = true;
     lastPos.current = { x: e.clientX, y: e.clientY };
+    const rect = containerRef.current.getBoundingClientRect();
     setVb((v) => ({
       ...v,
       x: v.x - (dx / rect.width) * v.w,
@@ -375,6 +386,7 @@ function MapView({
 
   // Click station → pan to it
   const selectAndPan = useCallback((id: string) => {
+    if (dragMoved.current) return; // ignore tap after drag
     const pos = STATION_POSITIONS[id];
     if (!pos) return;
     setSelectedStation(selectedStation === id ? null : id);
@@ -401,7 +413,7 @@ function MapView({
         onPointerLeave={handlePointerUp}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        className="touch-none"
+        className="touch-manipulation"
       >
         <svg
           viewBox={viewBox}
