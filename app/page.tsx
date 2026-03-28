@@ -147,23 +147,26 @@ export default function Home() {
     setLoading(true);
     fetchData();
     const interval = setInterval(() => { fetchData(); setCountdown(15); }, 15000);
+    const countdownTick = setInterval(() => setCountdown((c) => Math.max(0, c - 1)), 1000);
+    return () => { clearInterval(interval); clearInterval(countdownTick); };
+  }, [fetchData]);
+
+  // Separate effect: interpolate train positions every second (no API calls)
+  useEffect(() => {
+    if (trains.length === 0) return;
     const tick = setInterval(() => {
-      setCountdown((c) => Math.max(0, c - 1));
-      // Interpolate train positions client-side
-      if (trains.length > 0 && serverTimeRef.current > 0) {
-        const elapsed = (Date.now() - fetchTimeRef.current) / 60000; // minutes since fetch
-        const nowMin = serverTimeRef.current + elapsed;
-        setLiveTrains(trains.map((t) => {
-          if (t.atStation) return t;
-          const total = t.segEndMin - t.segStartMin;
-          if (total <= 0) return t;
-          const p = Math.min(1, Math.max(0, (nowMin - t.segStartMin) / total));
-          return { ...t, progress: p };
-        }));
-      }
+      const elapsed = (Date.now() - fetchTimeRef.current) / 60000;
+      const nowMin = serverTimeRef.current + elapsed;
+      setLiveTrains(trains.map((t) => {
+        if (t.atStation) return t;
+        const total = t.segEndMin - t.segStartMin;
+        if (total <= 0) return t;
+        const p = Math.min(1, Math.max(0, (nowMin - t.segStartMin) / total));
+        return { ...t, progress: p };
+      }));
     }, 1000);
-    return () => { clearInterval(interval); clearInterval(tick); };
-  }, [fetchData, trains]);
+    return () => clearInterval(tick);
+  }, [trains]);
 
   // Auto-locate on first data load
   const locatedOnce = useRef(false);
