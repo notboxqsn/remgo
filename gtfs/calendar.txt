@@ -1,0 +1,5 @@
+service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date
+RIV-DEM-27A166.xml,1,1,1,1,1,0,0,20260224,20260331
+RIV-DEM-12A120.xml,0,0,0,0,0,1,0,20260307,20260328
+RIV-DEM-12A117.xml,0,0,0,0,0,0,1,20260301,20260329
+ES-NB-RIV-DEM-12A142.xml,0,0,0,0,0,1,1,20260228,20260228
